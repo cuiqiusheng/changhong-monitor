@@ -1,0 +1,18 @@
+version: '3'
+
+services:
+  stock-monitor:
+    build: .
+    container_name: changhong-monitor
+    restart: always
+    environment:
+      - TZ=Asia/Shanghai
+      - FEISHU_WEBHOOK=${FEISHU_WEBHOOK}
+    volumes:
+      - ./logs:/app/logs
+      - ./data:/app/data
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
