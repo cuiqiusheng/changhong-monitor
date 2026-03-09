@@ -5,10 +5,10 @@
 供飞书机器人回复和定时推送共用
 """
 
-import akshare as ak
 import pandas as pd
 from datetime import datetime
 from monitor import SYMBOL, get_historical_data, logger
+from data_fetcher import fetch_spot
 
 
 def _fmt_volume(val):
@@ -58,12 +58,9 @@ def _safe(row, key, fmt=None):
 def query_realtime():
     """获取 600839 实时行情并格式化为文本"""
     try:
-        df = ak.stock_zh_a_spot_em()
-        row = df[df['代码'] == SYMBOL]
-        if row.empty:
+        r = fetch_spot(SYMBOL)
+        if r is None:
             return f"未找到股票代码 {SYMBOL}"
-
-        r = row.iloc[0]
 
         price = float(r.get('最新价', 0))
         change = float(r.get('涨跌额', 0))

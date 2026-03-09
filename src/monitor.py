@@ -7,29 +7,11 @@
 
 import os
 import requests
-import akshare as ak
 import pandas as pd
 from datetime import datetime, timedelta
 import logging
 import sys
-
-# 东方财富 API 对云服务器做了 TLS 指纹检测，标准 requests 会被拒绝。
-# 用 curl_cffi 模拟浏览器 TLS 指纹来绕过。
-# 需要 patch 所有持有 request_with_retry 引用的模块。
-try:
-    from curl_cffi import requests as _cffi_req
-    import akshare.utils.request as _ak_req
-    import akshare.utils.func as _ak_func
-
-    def _cffi_request_with_retry(url, params=None, timeout=30, **kwargs):
-        resp = _cffi_req.get(url, params=params, timeout=timeout, impersonate="chrome110")
-        resp.raise_for_status()
-        return resp
-
-    _ak_req.request_with_retry = _cffi_request_with_retry
-    _ak_func.request_with_retry = _cffi_request_with_retry
-except (ImportError, AttributeError):
-    pass
+from data_fetcher import fetch_spot, fetch_hist
 
 # ==================== 配置 ====================
 FEISHU_WEBHOOK = os.environ.get('FEISHU_WEBHOOK', '')
@@ -77,12 +59,11 @@ def is_trading_time():
 def get_current_price():
     """获取实时价格"""
     try:
-        df = ak.stock_zh_a_spot_em()
-        row = df[df['代码'] == SYMBOL]
-        if row.empty:
+        row = fetch_spot(SYMBOL)
+        if row is None:
             logger.error(f"未找到股票代码 {SYMBOL}")
             return None
-        return float(row['最新价'].values[0])
+        return float(row['最新价'])
     except Exception as e:
         logger.error(f"获取价格失败: {e}")
         return None
@@ -107,10 +88,7 @@ def get_historical_data(days=60):
         end_date = now.strftime('%Y%m%d')
         start_date = (now - timedelta(days=days)).strftime('%Y%m%d')
 
-        df = ak.stock_zh_a_hist(
-            symbol=SYMBOL, period="daily",
-            start_date=start_date, end_date=end_date, adjust="qfq",
-        )
+        df = fetch_hist(SYMBOL, start_date, end_date)
         if df is None or df.empty:
             return _hist_cache['data']
 
@@ -185,6 +163,7 @@ def _detect_divergence(df, lookback=20):
 def _get_fund_flow():
     """获取个股资金流向（失败时静默降级，不影响其他因子）"""
     try:
+        import akshare as ak
         df = ak.stock_individual_fund_flow(stock=SYMBOL, market="sh")
         if df is not None and not df.empty:
             return df
