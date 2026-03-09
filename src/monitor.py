@@ -8,10 +8,25 @@
 import os
 import requests
 import akshare as ak
+import akshare.utils.request as _ak_req
 import pandas as pd
 from datetime import datetime, timedelta
 import logging
 import sys
+
+# 东方财富 API 对云服务器做了 TLS 指纹检测，标准 requests 会被拒绝。
+# 用 curl_cffi 模拟浏览器 TLS 指纹来绕过。
+try:
+    from curl_cffi import requests as _cffi_req
+
+    def _cffi_request_with_retry(url, params=None, timeout=30, **kwargs):
+        resp = _cffi_req.get(url, params=params, timeout=timeout, impersonate="chrome110")
+        resp.raise_for_status()
+        return resp
+
+    _ak_req.request_with_retry = _cffi_request_with_retry
+except ImportError:
+    pass
 
 # ==================== 配置 ====================
 FEISHU_WEBHOOK = os.environ.get('FEISHU_WEBHOOK', '')
