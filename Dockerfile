@@ -16,7 +16,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY src/ ./src/
 
 # 创建日志目录
-RUN mkdir -p /app/logs
+RUN mkdir -p /app/logs /app/data
 
 # 设置容器启动命令
 CMD ["python", "-u", "src/loop.py"]
