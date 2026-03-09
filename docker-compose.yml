@@ -16,3 +16,23 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+
+  stock-bot:
+    build: .
+    container_name: changhong-bot
+    restart: always
+    ports:
+      - "9000:9000"
+    environment:
+      - TZ=Asia/Shanghai
+      - FEISHU_APP_ID=${FEISHU_APP_ID}
+      - FEISHU_APP_SECRET=${FEISHU_APP_SECRET}
+      - FEISHU_VERIFY_TOKEN=${FEISHU_VERIFY_TOKEN}
+    command: ["python", "-u", "src/bot.py"]
+    volumes:
+      - ./logs:/app/logs
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
