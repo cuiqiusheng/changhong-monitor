@@ -20,6 +20,7 @@ from lark_oapi.api.im.v1 import (
 )
 
 from query import query_realtime, query_market
+from data_fetcher import search_stock
 
 FEISHU_APP_ID = os.environ.get('FEISHU_APP_ID', '')
 FEISHU_APP_SECRET = os.environ.get('FEISHU_APP_SECRET', '')
@@ -39,9 +40,9 @@ client = lark.Client.builder() \
     .app_secret(FEISHU_APP_SECRET) \
     .build()
 
-STOCK_KEYWORDS = ['查询', '长虹', '股票']
 MARKET_KEYWORDS = ['大盘', '指数']
-ALL_KEYWORDS = STOCK_KEYWORDS + MARKET_KEYWORDS + ['行情']
+DEFAULT_STOCK_KEYWORDS = ['查询', '长虹', '股票', '行情']
+_STOCK_CODE_RE = re.compile(r'(?:^|\s)(\d{6})(?:\s|$)')
 
 _processed_events = set()
 _MAX_EVENTS = 500
@@ -85,16 +86,41 @@ def _handle_message(event_data):
     text = content.get('text', '').strip()
     text = re.sub(r'@_user_\d+\s*', '', text).strip()
 
-    if not any(kw in text for kw in ALL_KEYWORDS):
-        return
-
-    logger.info(f"收到查询请求: '{text}' from chat {chat_id}")
+    logger.info(f"收到消息: '{text}' from chat {chat_id}")
 
     if any(kw in text for kw in MARKET_KEYWORDS):
         result = query_market()
-    else:
-        result = query_realtime()
-    _send_reply(chat_id, result)
+        _send_reply(chat_id, result)
+        return
+
+    code_match = _STOCK_CODE_RE.search(text)
+    if code_match:
+        result = query_realtime(symbol=code_match.group(1))
+        _send_reply(chat_id, result)
+        return
+
+    for kw in DEFAULT_STOCK_KEYWORDS:
+        if kw in text:
+            remaining = text.replace(kw, "").strip()
+            if remaining:
+                found = search_stock(remaining)
+                if found:
+                    code, name = found
+                    logger.info(f"搜索到股票: {name}({code})")
+                    result = query_realtime(symbol=code)
+                    _send_reply(chat_id, result)
+                    return
+            result = query_realtime()
+            _send_reply(chat_id, result)
+            return
+
+    found = search_stock(text)
+    if found:
+        code, name = found
+        logger.info(f"搜索到股票: {name}({code})")
+        result = query_realtime(symbol=code)
+        _send_reply(chat_id, result)
+        return
 
 
 @app.route('/callback', methods=['POST'])

@@ -86,6 +86,33 @@ def fetch_spot(symbol="600839"):
         return None
 
 
+def search_stock(keyword):
+    """通过腾讯智能搜索查找股票，返回 (代码, 名称) 或 None
+
+    支持输入股票代码、名称、拼音首字母（如 "gzmt", "贵州茅台", "600519"）
+    """
+    url = f"https://smartbox.gtimg.cn/s3/?q={keyword}&t=gp&fr=web"
+    try:
+        resp = requests.get(url, timeout=_TIMEOUT)
+        resp.raise_for_status()
+        m = re.search(r'v_hint="([^"]*)"', resp.text)
+        if not m or not m.group(1):
+            return None
+        items = m.group(1).split("^")
+        for item in items:
+            parts = item.split("~")
+            if len(parts) >= 3:
+                market = parts[0]  # sh / sz
+                code = parts[1]
+                name = parts[2]
+                if market in ("sh", "sz") and len(code) == 6:
+                    return (code, name)
+        return None
+    except Exception as e:
+        logger.error(f"股票搜索失败: {e}")
+        return None
+
+
 def fetch_hist(symbol="600839", start_date="20250101", end_date="20260309"):
     """获取历史日线数据（前复权），返回 DataFrame"""
     prefix = "sh" if symbol.startswith("6") else "sz"

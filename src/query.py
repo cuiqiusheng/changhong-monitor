@@ -70,13 +70,15 @@ def _fmt_bid_ask(row):
     return lines
 
 
-def query_realtime():
-    """获取 600839 实时行情并格式化为文本"""
+def query_realtime(symbol=None):
+    """获取股票实时行情并格式化为文本，symbol 为 None 时查询默认股票（四川长虹）"""
+    query_symbol = symbol or SYMBOL
     try:
-        r = fetch_spot(SYMBOL)
+        r = fetch_spot(query_symbol)
         if r is None:
-            return f"未找到股票代码 {SYMBOL}"
+            return f"未找到股票代码 {query_symbol}"
 
+        name = r.get('名称', query_symbol)
         price = float(r.get('最新价', 0))
         change = float(r.get('涨跌额', 0))
         pct = float(r.get('涨跌幅', 0))
@@ -85,7 +87,7 @@ def query_realtime():
         now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
         lines = [
-            f"{direction} 四川长虹 ({SYMBOL}) 实时行情",
+            f"{direction} {name} ({query_symbol}) 实时行情",
             "━━━━━━━━━━━━━━━━━━",
             f"当前价：{price:.2f}  涨跌额：{change:+.2f}  涨跌幅：{pct:+.2f}%",
             f"今  开：{_safe(r, '今开')}  昨  收：{_safe(r, '昨收')}",
@@ -100,23 +102,24 @@ def query_realtime():
             *_fmt_bid_ask(r),
         ]
 
-        hist = get_historical_data(days=60)
-        if hist is not None and len(hist) > 0:
-            latest = hist.iloc[-1]
-            rsi = latest.get('rsi')
-            macd = latest.get('macd')
+        if query_symbol == SYMBOL:
+            hist = get_historical_data(days=60)
+            if hist is not None and len(hist) > 0:
+                latest = hist.iloc[-1]
+                rsi = latest.get('rsi')
+                macd = latest.get('macd')
 
-            tech_lines = []
-            if rsi is not None and not pd.isna(rsi):
-                status = "超卖" if rsi < 30 else ("超买" if rsi > 75 else "正常")
-                tech_lines.append(f"RSI(14)：{rsi:.1f} ({status})")
-            if macd is not None and not pd.isna(macd):
-                status = "多头" if macd > 0 else "空头"
-                tech_lines.append(f"MACD：{macd:.4f} ({status})")
+                tech_lines = []
+                if rsi is not None and not pd.isna(rsi):
+                    status = "超卖" if rsi < 30 else ("超买" if rsi > 75 else "正常")
+                    tech_lines.append(f"RSI(14)：{rsi:.1f} ({status})")
+                if macd is not None and not pd.isna(macd):
+                    status = "多头" if macd > 0 else "空头"
+                    tech_lines.append(f"MACD：{macd:.4f} ({status})")
 
-            if tech_lines:
-                lines.append("━━━━━━━━━━━━━━━━━━")
-                lines.extend(tech_lines)
+                if tech_lines:
+                    lines.append("━━━━━━━━━━━━━━━━━━")
+                    lines.extend(tech_lines)
 
         lines.extend([
             "━━━━━━━━━━━━━━━━━━",
