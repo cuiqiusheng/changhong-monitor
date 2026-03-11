@@ -259,6 +259,76 @@ def send_feishu(content):
         return False
 
 
+# ==================== 波动提醒 ====================
+
+_VOLATILITY_THRESHOLDS = [3, 5, 7, 9]
+
+_volatility_alerted = {}  # key: "YYYY-MM-DD|up|3" -> True
+
+
+def check_volatility():
+    """检测涨跌幅是否突破阈值，每档每天只触发一次，高档自动补发低档"""
+    try:
+        spot = fetch_spot(SYMBOL)
+        if spot is None:
+            return
+        pct = float(spot['涨跌幅'])
+        price = float(spot['最新价'])
+    except Exception as e:
+        logger.error(f"波动检测获取行情失败: {e}")
+        return
+
+    today = datetime.now().strftime('%Y-%m-%d')
+    direction = 'up' if pct >= 0 else 'down'
+    abs_pct = abs(pct)
+
+    triggered = []
+    for threshold in _VOLATILITY_THRESHOLDS:
+        if abs_pct >= threshold:
+            key = f"{today}|{direction}|{threshold}"
+            if key not in _volatility_alerted:
+                triggered.append(threshold)
+                _volatility_alerted[key] = True
+
+    if not triggered:
+        return
+
+    _cleanup_old_alerts(today)
+
+    max_threshold = max(triggered)
+    if direction == 'up':
+        emoji = "📈" if max_threshold < 7 else "🚀"
+        label = "涨幅"
+        risk_note = "注意追高风险，可考虑分批止盈" if max_threshold >= 7 else "关注持续性，量价配合"
+    else:
+        emoji = "📉" if max_threshold < 7 else "⚠️"
+        label = "跌幅"
+        risk_note = "关注止损位，控制仓位风险" if max_threshold >= 7 else "观察支撑位，等待企稳信号"
+
+    crossed = ", ".join(f"±{t}%" for t in sorted(triggered))
+    current_time = datetime.now().strftime("%H:%M:%S")
+
+    content = f"""{emoji} 波动提醒 | {label}达 {abs_pct:.2f}%
+
+股票：四川长虹 ({SYMBOL})
+当前价格：{price:.2f} 元
+涨跌幅：{pct:+.2f}%
+突破阈值：{crossed}
+时间：{current_time}
+
+提示：{risk_note}"""
+
+    if send_feishu(content):
+        logger.info(f"波动提醒推送: {pct:+.2f}% 突破 {crossed}")
+
+
+def _cleanup_old_alerts(today):
+    """清理非当天的提醒记录，避免内存泄漏"""
+    stale = [k for k in _volatility_alerted if not k.startswith(today)]
+    for k in stale:
+        del _volatility_alerted[k]
+
+
 # ==================== 主监控 ====================
 
 def check_and_notify():
