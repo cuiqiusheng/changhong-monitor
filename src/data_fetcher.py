@@ -15,6 +15,13 @@ logger = logging.getLogger(__name__)
 
 _TIMEOUT = 15
 
+_BROWSER_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "Accept": "application/json, text/plain, */*",
+    "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
+    "Referer": "https://quote.eastmoney.com/",
+}
+
 
 def _parse_tencent_spot(text, symbol):
     """解析腾讯实时行情响应"""
@@ -39,6 +46,18 @@ def _parse_tencent_spot(text, symbol):
         "昨收": _f(4),
         "今开": _f(5),
         "成交量": _f(6),
+        "外盘": _f(7),
+        "内盘": _f(8),
+        "买一价": _f(9),  "买一量": _f(10),
+        "买二价": _f(11), "买二量": _f(12),
+        "买三价": _f(13), "买三量": _f(14),
+        "买四价": _f(15), "买四量": _f(16),
+        "买五价": _f(17), "买五量": _f(18),
+        "卖一价": _f(19), "卖一量": _f(20),
+        "卖二价": _f(21), "卖二量": _f(22),
+        "卖三价": _f(23), "卖三量": _f(24),
+        "卖四价": _f(25), "卖四量": _f(26),
+        "卖五价": _f(27), "卖五量": _f(28),
         "涨跌额": _f(31),
         "涨跌幅": _f(32),
         "最高": _f(33),
@@ -113,6 +132,84 @@ def fetch_hist(symbol="600839", start_date="20250101", end_date="20260309"):
     except Exception as e:
         logger.error(f"获取历史数据失败: {e}")
         return pd.DataFrame()
+
+
+def fetch_indices(codes):
+    """批量获取指数实时行情，codes 为带前缀的列表如 ['sh000001', 'sz399001']，返回 dict 列表"""
+    if not codes:
+        return []
+    query = ",".join(codes)
+    url = f"https://qt.gtimg.cn/q={query}"
+    try:
+        resp = requests.get(url, timeout=_TIMEOUT)
+        resp.raise_for_status()
+        return _parse_tencent_batch(resp.text)
+    except Exception as e:
+        logger.error(f"获取指数行情失败: {e}")
+        return []
+
+
+def _parse_tencent_batch(text):
+    """解析腾讯批量行情响应，每段 v_xxx=\"...\" 解析为一个 dict"""
+    results = []
+    for m in re.finditer(r'v_(s[hz]\w+)="([^"]*)"', text):
+        raw = m.group(2)
+        if not raw:
+            continue
+        parts = raw.split("~")
+        if len(parts) < 50:
+            continue
+
+        def _f(idx, _p=parts):
+            try:
+                return float(_p[idx])
+            except (IndexError, ValueError):
+                return 0.0
+
+        results.append({
+            "名称": parts[1],
+            "代码": parts[2],
+            "最新价": _f(3),
+            "昨收": _f(4),
+            "今开": _f(5),
+            "成交量": _f(6),
+            "涨跌额": _f(31),
+            "涨跌幅": _f(32),
+            "最高": _f(33),
+            "最低": _f(34),
+            "成交额": _f(37) * 10000,
+            "振幅": _f(43),
+        })
+    return results
+
+
+def fetch_market_breadth():
+    """获取上证/深证/创业板的涨跌家数（东方财富 API，失败静默降级）
+
+    返回格式: {"000001": {"up": 2431, "down": 1892, "flat": 203}, ...}
+    """
+    url = "https://push2.eastmoney.com/api/qt/ulist.np/get"
+    params = {
+        "fltt": 2,
+        "secids": "1.000001,0.399001,0.399006",
+        "fields": "f12,f104,f105,f106",
+    }
+    try:
+        resp = requests.get(url, params=params, headers=_BROWSER_HEADERS, timeout=_TIMEOUT)
+        resp.raise_for_status()
+        data = resp.json()
+        result = {}
+        for item in data.get("data", {}).get("diff", []):
+            code = item.get("f12", "")
+            result[code] = {
+                "up": int(item.get("f104", 0)),
+                "down": int(item.get("f105", 0)),
+                "flat": int(item.get("f106", 0)),
+            }
+        return result
+    except Exception as e:
+        logger.debug(f"获取涨跌家数失败（静默降级）: {e}")
+        return {}
 
 
 def _fmt_date(d):

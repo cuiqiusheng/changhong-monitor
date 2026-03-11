@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-推送测试脚本 - 模拟四种信号场景发送飞书消息
+推送测试脚本 - 模拟信号/波动/大盘场景发送飞书消息
 本地使用: source venv/bin/activate && cd src && FEISHU_WEBHOOK="你的webhook" python test_push.py
 容器使用: docker exec -it changhong-monitor python src/test_push.py
+参数: all | signal | volatility | market
 """
 
 import sys
@@ -141,6 +142,19 @@ def main():
             else:
                 logger.error(f"  ❌ 推送失败")
             time.sleep(1)
+
+    if test_type in ("all", "market"):
+        logger.info("\n=== 大盘行情测试 (实时数据) ===")
+        total += 1
+        from query import query_market
+        result = query_market()
+        msg = f"[测试] 📊 大盘行情推送\n\n{result}"
+        logger.info("发送大盘行情...")
+        if send_feishu(msg):
+            logger.info("  ✅ 大盘推送成功")
+            success += 1
+        else:
+            logger.error("  ❌ 大盘推送失败")
 
     logger.info(f"\n测试完成: {success}/{total} 条发送成功，请检查飞书是否收到消息")
     if success < total:

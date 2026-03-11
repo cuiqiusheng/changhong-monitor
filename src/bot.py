@@ -19,7 +19,7 @@ from lark_oapi.api.im.v1 import (
     CreateMessageRequestBody,
 )
 
-from query import query_realtime
+from query import query_realtime, query_market
 
 FEISHU_APP_ID = os.environ.get('FEISHU_APP_ID', '')
 FEISHU_APP_SECRET = os.environ.get('FEISHU_APP_SECRET', '')
@@ -39,7 +39,9 @@ client = lark.Client.builder() \
     .app_secret(FEISHU_APP_SECRET) \
     .build()
 
-TRIGGER_KEYWORDS = ['查询', '行情', '长虹', '股票']
+STOCK_KEYWORDS = ['查询', '长虹', '股票']
+MARKET_KEYWORDS = ['大盘', '指数']
+ALL_KEYWORDS = STOCK_KEYWORDS + MARKET_KEYWORDS + ['行情']
 
 _processed_events = set()
 _MAX_EVENTS = 500
@@ -83,11 +85,15 @@ def _handle_message(event_data):
     text = content.get('text', '').strip()
     text = re.sub(r'@_user_\d+\s*', '', text).strip()
 
-    if not any(kw in text for kw in TRIGGER_KEYWORDS):
+    if not any(kw in text for kw in ALL_KEYWORDS):
         return
 
     logger.info(f"收到查询请求: '{text}' from chat {chat_id}")
-    result = query_realtime()
+
+    if any(kw in text for kw in MARKET_KEYWORDS):
+        result = query_market()
+    else:
+        result = query_realtime()
     _send_reply(chat_id, result)
 
 

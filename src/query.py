@@ -8,7 +8,7 @@
 import pandas as pd
 from datetime import datetime
 from monitor import SYMBOL, get_historical_data, logger
-from data_fetcher import fetch_spot
+from data_fetcher import fetch_spot, fetch_indices, fetch_market_breadth
 
 
 def _fmt_volume(val):
@@ -55,6 +55,21 @@ def _safe(row, key, fmt=None):
     return val
 
 
+def _fmt_bid_ask(row):
+    """格式化五档盘口"""
+    lines = []
+    for i in range(5, 0, -1):
+        price = row.get(f'卖{i}价', 0)
+        vol = row.get(f'卖{i}量', 0)
+        lines.append(f"卖{i}  {price:.2f}  {vol:.0f}手")
+    lines.append("─ ─ ─ ─ ─ ─ ─ ─ ─")
+    for i in range(1, 6):
+        price = row.get(f'买{i}价', 0)
+        vol = row.get(f'买{i}量', 0)
+        lines.append(f"买{i}  {price:.2f}  {vol:.0f}手")
+    return lines
+
+
 def query_realtime():
     """获取 600839 实时行情并格式化为文本"""
     try:
@@ -81,6 +96,8 @@ def query_realtime():
             "━━━━━━━━━━━━━━━━━━",
             f"市盈率：{_safe(r, '市盈率-动态')}  市净率：{_safe(r, '市净率')}",
             f"总市值：{_fmt_market_cap(r.get('总市值', 0))}  流通市值：{_fmt_market_cap(r.get('流通市值', 0))}",
+            "━━━━━━ 五档盘口 ━━━━━━",
+            *_fmt_bid_ask(r),
         ]
 
         hist = get_historical_data(days=60)
@@ -110,3 +127,75 @@ def query_realtime():
     except Exception as e:
         logger.error(f"行情查询失败: {e}")
         return f"行情查询失败: {e}"
+
+
+_DETAIL_INDICES = [
+    ("sh000001", "000001"),
+    ("sz399001", "399001"),
+    ("sz399006", "399006"),
+]
+
+_BRIEF_INDICES = [
+    "sh000300",   # 沪深300
+    "sh000016",   # 上证50
+    "sh000905",   # 中证500
+    "sh000852",   # 中证1000
+    "sz399303",   # 中证2000
+]
+
+_ALL_INDEX_CODES = [c for c, _ in _DETAIL_INDICES] + _BRIEF_INDICES
+
+
+def query_market():
+    """获取大盘行情概览并格式化为文本"""
+    try:
+        all_data = fetch_indices(_ALL_INDEX_CODES)
+        if not all_data:
+            return "大盘行情获取失败"
+
+        idx_map = {d["代码"]: d for d in all_data}
+        breadth = fetch_market_breadth()
+        now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+        lines = []
+
+        for _, symbol in _DETAIL_INDICES:
+            d = idx_map.get(symbol)
+            if not d:
+                continue
+            pct = d.get("涨跌幅", 0)
+            price = d.get("最新价", 0)
+            emoji = "🔴" if pct > 0 else ("🟢" if pct < 0 else "⚪")
+            lines.append(f"{emoji} {d['名称']}  {price:,.2f}  {pct:+.2f}%")
+
+            detail = f"成交额：{_fmt_amount(d.get('成交额', 0))}"
+            b = breadth.get(symbol)
+            if b:
+                detail += f"  涨:{b['up']} 跌:{b['down']} 平:{b['flat']}"
+            lines.append(detail)
+            lines.append("")
+
+        if lines and lines[-1] == "":
+            lines.pop()
+
+        brief_data = [idx_map.get(c.replace("sh", "").replace("sz", "")) for c in _BRIEF_INDICES]
+        brief_data = [d for d in brief_data if d]
+
+        if brief_data:
+            lines.append("━━━━━━ 宽基指数 ━━━━━━")
+            for d in brief_data:
+                pct = d.get("涨跌幅", 0)
+                price = d.get("最新价", 0)
+                name = d["名称"]
+                pad = "  " * max(0, 5 - len(name))
+                lines.append(f"{name}{pad}{price:,.2f}  {pct:+.2f}%")
+
+        lines.extend([
+            "━━━━━━━━━━━━━━━━━━",
+            f"查询时间：{now}",
+        ])
+
+        return "\n".join(lines)
+    except Exception as e:
+        logger.error(f"大盘行情查询失败: {e}")
+        return f"大盘行情查询失败: {e}"

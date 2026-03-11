@@ -7,7 +7,7 @@
 import time
 from datetime import datetime
 from monitor import check_and_notify, check_volatility, is_trading_time, send_feishu, logger
-from query import query_realtime
+from query import query_realtime, query_market
 
 TRADING_INTERVAL = 60
 NON_TRADING_INTERVAL = 300
@@ -20,11 +20,11 @@ _PUSH_SCHEDULE = {
     'close':     (1505, 1510, '收盘总结'),
 }
 
-_daily_push_done = {k: None for k in _PUSH_SCHEDULE}
+_daily_push_done = {}
 
 
 def _check_scheduled_push():
-    """在交易日 5 个关键时段自动推送行情摘要"""
+    """在交易日 5 个关键时段自动推送大盘 + 个股行情"""
     now = datetime.now()
     if now.weekday() >= 5:
         return
@@ -33,11 +33,16 @@ def _check_scheduled_push():
     t = now.hour * 100 + now.minute
 
     for key, (start, end, label) in _PUSH_SCHEDULE.items():
-        if start <= t <= end and _daily_push_done.get(key) != today:
-            result = query_realtime()
-            if send_feishu(f"📊 {label}行情推送\n\n{result}"):
-                _daily_push_done[key] = today
-                logger.info(f"{label}行情推送成功")
+        if start <= t <= end and _daily_push_done.get(f"{key}_market") != today:
+            market = query_market()
+            if send_feishu(f"📊 {label} | 大盘行情\n\n{market}"):
+                _daily_push_done[f"{key}_market"] = today
+                logger.info(f"{label}大盘推送成功")
+
+            stock = query_realtime()
+            if send_feishu(f"📊 {label} | 个股行情\n\n{stock}"):
+                _daily_push_done[f"{key}_stock"] = today
+                logger.info(f"{label}个股推送成功")
 
 
 if __name__ == "__main__":

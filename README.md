@@ -18,7 +18,7 @@
 
 ### 定时行情推送
 
-交易日 5 个关键时段自动推送行情摘要：
+交易日 5 个关键时段自动推送**大盘行情 + 个股行情**（分两条消息）：
 
 | 时间 | 内容 |
 |------|------|
@@ -28,9 +28,19 @@
 | 13:05 | 午后开盘 |
 | 15:05 | 收盘总结 |
 
+大盘行情包含：
+- **详细展示**：上证指数、深证成指、创业板指（成交额 + 涨跌家数）
+- **宽基指数**：沪深300、上证50、中证500、中证1000、中证2000
+
 ### 飞书机器人交互
 
-在飞书群中 @机器人 发送关键词（`查询`、`行情`、`长虹`、`股票`），即时回复包含价格、涨跌、成交量、技术指标等完整行情数据。
+在飞书群中 @机器人 发送关键词，即时回复对应行情数据：
+
+| 关键词 | 功能 |
+|--------|------|
+| `查询` `长虹` `股票` | 个股行情（价格、涨跌、五档盘口、技术指标） |
+| `大盘` `指数` | 大盘行情概览（主要指数 + 涨跌家数） |
+| `行情` | 个股行情（通用触发词） |
 
 ## 项目结构
 
@@ -38,8 +48,8 @@
 ├── src/
 │   ├── loop.py          # 主循环入口（监控 + 定时推送 + 波动提醒）
 │   ├── monitor.py       # 三因子策略 + 波动检测 + 飞书推送
-│   ├── data_fetcher.py  # 行情数据获取（腾讯财经 API）
-│   ├── query.py         # 实时行情查询与格式化
+│   ├── data_fetcher.py  # 行情数据获取（腾讯财经 + 东方财富 API）
+│   ├── query.py         # 个股/大盘行情查询与格式化
 │   ├── bot.py           # 飞书机器人 HTTP 服务（Flask）
 │   └── test_push.py     # 推送测试脚本
 ├── Dockerfile
@@ -84,7 +94,7 @@ docker compose up -d --build
 
 | 服务 | 容器名 | 功能 |
 |------|--------|------|
-| stock-monitor | changhong-monitor | 策略监控 + 定时推送 + 波动提醒 |
+| stock-monitor | changhong-monitor | 策略监控 + 定时推送（大盘+个股） + 波动提醒 |
 | stock-bot | changhong-bot | 飞书机器人交互服务（端口 9000） |
 
 ### 3. 查看日志
@@ -100,7 +110,7 @@ docker logs -f changhong-bot
 ## 测试
 
 ```bash
-# 测试所有推送（三因子信号 + 波动提醒）
+# 测试所有推送（三因子信号 + 波动提醒 + 大盘行情）
 docker exec -it changhong-monitor python src/test_push.py
 
 # 仅测试三因子信号推送
@@ -108,6 +118,9 @@ docker exec -it changhong-monitor python src/test_push.py signal
 
 # 仅测试波动提醒推送
 docker exec -it changhong-monitor python src/test_push.py volatility
+
+# 仅测试大盘行情推送（拉取实时数据）
+docker exec -it changhong-monitor python src/test_push.py market
 ```
 
 本地测试（需先激活虚拟环境）：
@@ -133,4 +146,10 @@ cd src && FEISHU_WEBHOOK="你的webhook" python test_push.py
 
 ## 数据源
 
-实时行情和历史 K 线均来自腾讯财经 API，云服务器友好，无 TLS 指纹拦截。资金流向数据通过 akshare 获取（失败时静默降级，不影响其他因子）。
+| 数据 | 来源 | 说明 |
+|------|------|------|
+| 个股实时行情 | 腾讯财经 API | 云服务器友好，无 TLS 指纹拦截 |
+| 历史 K 线 | 腾讯财经 API | 前复权日线数据 |
+| 指数行情 | 腾讯财经 API | 批量查询，一次请求获取所有指数 |
+| 涨跌家数 | 东方财富 API | 模拟浏览器请求，失败时静默降级 |
+| 资金流向 | akshare | 失败时静默降级，不影响其他因子 |
