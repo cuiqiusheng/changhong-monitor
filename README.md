@@ -1,6 +1,6 @@
-# 四川长虹（600839）智能监控系统
+# stock-monitor · A 股智能监控系统
 
-基于三因子策略的 A 股监控系统，通过飞书进行信号推送和实时行情交互。
+基于三因子策略的 A 股监控系统，当前默认监控标的为四川长虹（600839），通过飞书进行信号推送和实时行情交互。
 
 ## 功能概览
 
@@ -42,7 +42,7 @@
 | 关键词 + 股票名称 | `查询 贵州茅台` | 搜索并查询指定股票 |
 | 关键词 + 拼音首字母 | `查询 gzmt` | 按拼音缩写搜索股票 |
 | 直接输入股票名称 | `贵州茅台` | 自动识别并查询 |
-| 默认关键词 | `查询` `长虹` `股票` `行情` | 查询四川长虹（默认股票） |
+| 默认关键词 | `查询` `长虹` `股票` `行情` | 查询默认监控股票（四川长虹） |
 | 大盘关键词 | `大盘` `指数` | 大盘行情概览（主要指数 + 涨跌家数） |
 
 ## 项目结构
@@ -97,33 +97,33 @@ docker compose up -d --build
 
 | 服务 | 容器名 | 功能 |
 |------|--------|------|
-| stock-monitor | changhong-monitor | 策略监控 + 定时推送（大盘+个股） + 波动提醒 |
-| stock-bot | changhong-bot | 飞书机器人交互服务（端口 9000） |
+| stock-monitor | stock-monitor | 策略监控 + 定时推送（大盘+个股） + 波动提醒 |
+| stock-bot | stock-bot | 飞书机器人交互服务（端口 9000） |
 
 ### 3. 查看日志
 
 ```bash
 # 监控服务日志
-docker logs -f changhong-monitor
+docker logs -f stock-monitor
 
 # 机器人服务日志
-docker logs -f changhong-bot
+docker logs -f stock-bot
 ```
 
 ## 测试
 
 ```bash
 # 测试所有推送（三因子信号 + 波动提醒 + 大盘行情）
-docker exec -it changhong-monitor python src/test_push.py
+docker exec -it stock-monitor python src/test_push.py
 
 # 仅测试三因子信号推送
-docker exec -it changhong-monitor python src/test_push.py signal
+docker exec -it stock-monitor python src/test_push.py signal
 
 # 仅测试波动提醒推送
-docker exec -it changhong-monitor python src/test_push.py volatility
+docker exec -it stock-monitor python src/test_push.py volatility
 
 # 仅测试大盘行情推送（拉取实时数据）
-docker exec -it changhong-monitor python src/test_push.py market
+docker exec -it stock-monitor python src/test_push.py market
 ```
 
 本地测试（需先激活虚拟环境）：
@@ -140,6 +140,7 @@ cd src && FEISHU_WEBHOOK="你的webhook" python test_push.py
 
 | 参数 | 默认值 | 说明 |
 |------|--------|------|
+| `SYMBOL` | 600839 | 监控股票代码（默认四川长虹） |
 | `BASE_BUY_PRICE` | 9.50 | 买入价格阈值 |
 | `BASE_SELL_PRICE` | 10.50 | 卖出价格阈值 |
 | `RSI_OVERSELL` | 30 | RSI 超卖线 |

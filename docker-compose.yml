@@ -3,7 +3,7 @@ version: '3'
 services:
   stock-monitor:
     build: .
-    container_name: changhong-monitor
+    container_name: stock-monitor
     restart: always
     environment:
       - TZ=Asia/Shanghai
@@ -19,7 +19,7 @@ services:
 
   stock-bot:
     build: .
-    container_name: changhong-bot
+    container_name: stock-bot
     restart: always
     ports:
       - "9000:9000"

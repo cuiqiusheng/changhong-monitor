@@ -3,7 +3,7 @@
 """
 推送测试脚本 - 模拟信号/波动/大盘场景发送飞书消息
 本地使用: source venv/bin/activate && cd src && FEISHU_WEBHOOK="你的webhook" python test_push.py
-容器使用: docker exec -it changhong-monitor python src/test_push.py
+容器使用: docker exec -it stock-monitor python src/test_push.py
 参数: all | signal | volatility | market
 """
 
