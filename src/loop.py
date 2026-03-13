@@ -17,6 +17,8 @@ _PUSH_SCHEDULE = {
     'morning':   (1030, 1035, '早盘中段'),
     'mid_close': (1135, 1140, '午盘收盘'),
     'afternoon': (1305, 1310, '午后开盘'),
+    'afternoon_mid': (1400, 1405, '下午盘中'),
+    'afternoon_late': (1440, 1445, '尾盘前'),
     'close':     (1505, 1510, '收盘总结'),
 }
 
@@ -24,7 +26,7 @@ _daily_push_done = {}
 
 
 def _check_scheduled_push():
-    """在交易日 5 个关键时段自动推送大盘 + 个股行情"""
+    """在交易日 7 个关键时段自动推送大盘 + 个股行情"""
     now = datetime.now()
     if now.weekday() >= 5:
         return
